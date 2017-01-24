@@ -2,7 +2,7 @@
 /*********************************************************************************************************************\
  * LAST UPDATE
  * ============
- * August 6th, 2012
+ * January 24th, 2017
  *
  *
  * AUTHOR
@@ -14,6 +14,8 @@
  * ==================
  * Josh Sherman
  * josh@crowdsavings.com
+ * Jason Powell
+ * jasondpowell@gmail.com
  *
  * Thanks to Andrew Hewitt (rudebwoy@hotmail.com) for the idea and suggestion
  *
@@ -60,13 +62,13 @@ class dBug {
 	var $xmlCount=0;
 	var $xmlAttrib;
 	var $xmlName;
-	var $arrType=array("array","object","resource","boolean","NULL");
+	var $arrType=array("array","object","resource","boolean","NULL","mysqli");
 	var $bInitialized = false;
 	var $bCollapsed = false;
 	var $arrHistory = array();
 
 	//constructor
-	function dBug($var,$forceType="",$bCollapsed=false) {
+	function __construct($var,$forceType="",$bCollapsed=false) {
 		//include js and css scripts
 		if(!defined('BDBUGINIT')) {
 			define("BDBUGINIT", TRUE);
@@ -154,7 +156,11 @@ class dBug {
 				$this->varIsResource($var);
 				break;
 			case "object":
-				$this->varIsObject($var);
+				if($var instanceof mysqli_result) {
+					$this->varIsMysqliObject($var);
+				} else {
+					$this->varIsObject($var);
+				}
 				break;
 			case "array":
 				$this->varIsArray($var);
@@ -278,6 +284,14 @@ class dBug {
 		}
 		echo $this->closeTDRow()."</table>\n";
 	}
+	
+	// if variable is a MySQLi resource object
+	function varIsMysqliObject($var) {
+		$this->makeTableHeader("resourceC","resource",1);
+		echo "<tr>\n<td>\n";
+		$this->varIsDBResultObject($var, "mysqli");
+		echo $this->closeTDRow()."</table>\n";
+	}
 
 	//if variable is a database resource type
 	function varIsDBResource($var,$db="mysql") {
@@ -323,6 +337,36 @@ class dBug {
 			call_user_func($db."_data_seek",$var,0);
 	}
 
+	//if variable is a database resource type
+	function varIsDBResultObject($var,$db="mysqli") {
+		$numrows = $var->num_rows;
+		$numfields = $var->field_count;
+		$field = $var->fetch_fields();
+		$this->makeTableHeader("resource", $db." result", $numfields+1);
+		echo "<tr><td class=\"dBug_resourceKey\">&nbsp;</td>";
+		for($i=0; $i < $numfields; $i++) {
+			$field_header = "";
+			$field_name = $field[$i]->name;
+			$field_header = $field[$i]->type . " " . $field[$i]->flags; 
+			echo "<td class=\"dBug_resourceKey\" title=\"".$field_header."\">".$field_name."</td>";
+		}
+		echo "</tr>";
+		for($i = 0; $i < $numrows; $i++) {
+			$row = $var->fetch_assoc();
+			echo "<tr>\n";
+			echo "<td class=\"dBug_resourceKey\">".($i+1)."</td>";
+			for($k = 0; $k < $numfields; $k++) {
+				$fieldrow = ($row[($field[$k]->name)]==="") ? "[empty string]" : $row[($field[$k]->name)];
+				echo "<td>".$fieldrow."</td>\n";
+			}
+			echo "</tr>\n";
+		}
+		echo "</table>";
+		if($numrows>0) {
+			$var->data_seek(0);
+		}
+	}
+	
 	//if variable is an image/gd resource type
 	function varIsGDResource($var) {
 		$this->makeTableHeader("resource","gd",2);
